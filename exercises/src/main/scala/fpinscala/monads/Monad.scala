@@ -6,6 +6,8 @@ import testing._
 import parallelism._
 import state._
 import parallelism.Par._
+import language.higherKinds
+
 
 import scala.{Option => _}
 
