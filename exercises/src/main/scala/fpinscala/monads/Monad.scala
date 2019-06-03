@@ -7,6 +7,8 @@ import parallelism._
 import state._
 import parallelism.Par._
 
+import scala.{Option => _}
+
 trait Functor[F[_]] {
   def map[A,B](fa: F[A])(f: A => B): F[B]
 
@@ -64,22 +66,37 @@ object Monad {
 
   def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = ???
 
-  val optionMonad: Monad[Option] = ???
+  val optionMonad: Monad[Option] = new Monad[Option] {
+    def flatMap[A, B](ma: Option[A])(f: A => Option[B]): Option[B] =
+      ma flatMap f
+    def unit[A](a: => A): Option[A] = Some(a)
+  }
 
-  val streamMonad: Monad[Stream] = ???
+  val streamMonad: Monad[Stream] = new Monad[Stream] {
+    def unit[A](a: => A): Stream[A] = Stream(a)
+    override def flatMap[A,B](ma: Stream[A])(f: A => Stream[B]) : Stream[B] = {
+      val b: Stream[B] = f(ma.head)
+    }
+
+  }
 
   val listMonad: Monad[List] = ???
 
   def stateMonad[S] = ???
 
-  val idMonad: Monad[Id] = ???
+  val idMonad: Monad[Id] = {
+    def unit[A](a: A) = Id(a)
+    def flatMap[A,B](ida: Id[A])(f: A => Id[B]) : Id[B] = {
+      f(ida.value)
+    }
+  }
 
   def readerMonad[R] = ???
 }
 
 case class Id[A](value: A) {
-  def map[B](f: A => B): Id[B] = ???
-  def flatMap[B](f: A => Id[B]): Id[B] = ???
+  def map[B](f: A => B): Id[B] = Id(f(value))
+  def flatMap[B](f: A => Id[B]): Id[B] = f(value)
 }
 
 object Reader {

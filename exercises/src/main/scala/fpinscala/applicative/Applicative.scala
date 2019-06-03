@@ -4,27 +4,58 @@ package applicative
 import monads.Functor
 import state._
 import State._
-import StateUtil._ // defined at bottom of this file
+import StateUtil._
+
+import scala.language.reflectiveCalls
+
+// defined at bottom of this file
 import monoids._
 
 trait Applicative[F[_]] extends Functor[F] {
 
-  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = ???
+//  val a = Option(null)
+  val a = Option[Nothing]
 
-  def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] = ???
+  val b = a({
+    val c = this
+    println(c)
+    throw new NotImplementedError})
+
+  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = {
+    val fcurr: A => B => C = f.curried // break argument into sequence
+    val fbc: F[B => C] = map(fa)(fcurr)
+    apply(fbc)(fb)
+  }
+
+  def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] = {
+    map2(fab, fa)((fab, fa) => fab(fa))
+  }
 
   def unit[A](a: => A): F[A]
 
   def map[A,B](fa: F[A])(f: A => B): F[B] =
-    apply(unit(f))(fa)
+    apply(unit[A => B](f))(fa)
 
-  def sequence[A](fas: List[F[A]]): F[List[A]] = ???
+  // recursive but not tail recursive!
+  def sequence[A](fas: List[F[A]]): F[List[A]] = fas match {
+    case h::t =>
+      map2(h,sequence(t))((he, ta) => he :: ta)
+    case Nil => unit(Nil)
+  }
 
-  def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] = ???
 
-  def replicateM[A](n: Int, fa: F[A]): F[List[A]] = ???
+  def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] =  {
+    as.foldRight(unit(List[B]()))((h: A, t: F[List[B]]) => map2(f(h), t)(_ :: _) )
+  }
 
-  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] = ???
+  def replicateM[A](n: Int, fa: F[A]): F[List[A]] = {
+    val l = List.range(1,n)
+    traverse(l)({x => fa})
+  }
+
+  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
+    map2(fa, fb)((_, _))
+
 
   def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
 
@@ -116,11 +147,11 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
     traverse[({type f[x] = State[S,x]})#f,A,B](fa)(f)(Monad.stateMonad)
 
   def mapAccum[S,A,B](fa: F[A], s: S)(f: (A, S) => (B, S)): (F[B], S) =
-    traverseS(fa)((a: A) => (for {
+    traverseS(fa)((a: A) => for {
       s1 <- get[S]
       (b, s2) = f(a, s1)
-      _  <- set(s2)
-    } yield b)).run(s)
+      _ <- set(s2)
+    } yield b).run(s)
 
   override def toList[A](fa: F[A]): List[A] =
     mapAccum(fa, List[A]())((a, s) => ((), a :: s))._2.reverse
