@@ -66,7 +66,7 @@ object Par {
   // No additional primitives are required. Do not call run.
   def sequence[A](ps: List[Par[A]]): Par[List[A]] = ps match {
     case a1 :: tail =>
-      map2(a1, sequence(tail))((x,y) => x +: y)
+      map2(a1, fork(sequence(tail)))((x,y) => x +: y)     //why do we need `fork` here??
     case a :: Nil => map(a)(a => List(a))
   }
 
